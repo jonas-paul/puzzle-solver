@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
-using Emgu.CV.Util;
 
 namespace PuzzleExtractor
 {
@@ -28,7 +27,7 @@ namespace PuzzleExtractor
 
         public PointF[] Comparable { get; }
 
-        public Point Centroid => CornerExtractor.GetCentroid(Points);
+        public Point Centroid => Utils.GetCentroid(Points);
 
         public static PointF[] Align(Point[] segment)
         {

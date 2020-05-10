@@ -1,14 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Emgu.CV;
 using Emgu.CV.CvEnum;
-using Emgu.CV.ImgHash;
 using Emgu.CV.Structure;
 using Emgu.CV.Util;
 
@@ -18,7 +13,7 @@ namespace PuzzleExtractor
     {
         static void Main(string[] args)
         {
-            var img = new Image<Bgr, Byte>(Desktop("multipieces.jpg"));
+            var img = new Image<Bgr, Byte>(DataDir.Contours("multipieces.jpg"));
             var grey = new Image<Gray, byte>(img.Bitmap);
             var smooth = grey.SmoothGaussian(7);
             var thresholded = smooth.ThresholdBinary(new Gray(160), new Gray(256));
@@ -53,14 +48,11 @@ namespace PuzzleExtractor
             CvInvoke.CornerHarris(thresholded, cornerImage, 3);
             var cornersThresholded = cornerImage.ThresholdBinaryInv(new Gray(160), new Gray(256));
 
-            cornersThresholded.Bitmap.Save(Desktop("cornerImage.bmp"), ImageFormat.Bmp);
+            cornersThresholded.Bitmap.Save(DataDir.Contours("cornerImage.bmp"), ImageFormat.Bmp);
 
-            img.Bitmap.Save(Desktop("markedContours.bmp"), ImageFormat.Bmp);
+            img.Bitmap.Save(DataDir.Contours("markedContours.bmp"), ImageFormat.Bmp);
         }
 
-        static string Desktop(string filename)
-        {
-            return Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "contours"), filename);
-        }
+
     }
 }

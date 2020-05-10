@@ -24,7 +24,7 @@ namespace PuzzleExtractor.Forms
         {
             InitializeComponent();
 
-            _sourceImage = new Bitmap(@"C:\Users\Jonas\Desktop\contours\test4.jpg");
+            _sourceImage = new Bitmap(DataDir.Contours("test4.jpg"));
 
             trackBar1.Value = 12;
 
@@ -37,6 +37,44 @@ namespace PuzzleExtractor.Forms
             {
                 var trackBar = (TrackBar)sender;
                 Recalculate(trackBar.Value);
+            }
+        }
+
+        public class PuzzleImage
+        {
+            private readonly string _sourceFilePath;
+            private readonly Options _options;
+            private string _fileName;
+            private Bitmap _sourceImage;
+            private Bitmap _cornerImage;
+
+            public PuzzleImage(string sourceFilePath, Options options)
+            {
+                _sourceFilePath = sourceFilePath;
+                _options = options;
+
+                _fileName = Path.GetFileNameWithoutExtension(_sourceFilePath);
+            }
+
+            public void Process()
+            {
+                _sourceImage = new Bitmap(_sourceFilePath);
+
+                var grey = new Image<Gray, byte>(_sourceImage);
+                //var smooth = grey.SmoothGaussian(7);
+                var contourImage = grey.ThresholdBinary(new Gray(175), new Gray(256));
+
+                _cornerImage = CornerExtractor.GetCornerImage(contourImage, _options.CornerThreshold).Bitmap;
+                var corners = CornerExtractor.GetRealCorners(contourImage, _options.CornerThreshold);
+
+                var allSegments = new List<Segment>();
+
+            }
+
+            public class Options
+            {
+                public int ContourThreshold { get; set; }
+                public int CornerThreshold { get; set; }
             }
         }
 
@@ -57,86 +95,30 @@ namespace PuzzleExtractor.Forms
             var displayImage = new Image<Bgr, byte>(contourImage.Bitmap);
             //var displayImage = new Image<Bgr, byte>(cornerImage);
 
-            var allSegments = new List<Segment>();
-
             var colors = new[] { Color.Yellow, Color.Red, Color.Orange, Color.Cyan, Color.Indigo, Color.Chartreuse };
 
-            var contours = GetContours(contourImage);
+            var contours = ContourExtractor.GetContours(contourImage);
 
-            foreach (var contour in contours)
+            var pieces = contours.Select(c => new Piece(c, CornerExtractor.GetContourCorners(c, corners))).ToArray();
+
+            foreach (var piece in pieces)
             {
-                var rectangle = CvInvoke.BoundingRectangle(new VectorOfPoint(contour));
-                var cornersInRectangle = corners.Where(c => rectangle.Contains(c)).ToArray();
+                CvInvoke.Polylines(displayImage, piece.Contour, true, new Bgr(Color.Red).MCvScalar, 1);
 
-                var adjustedCorners = cornersInRectangle.ToArray();
-                var distances = cornersInRectangle.Select(c => int.MaxValue).ToArray();
-
-                var contourPoints = contour.ToArray().Reverse().ToArray();
-
-                foreach (var contourPoint in contourPoints)
+                for (var i = 0; i < piece.Segments.Count(); i++)
                 {
-                    for (var i = 0; i < cornersInRectangle.Length; i++)
-                    {
-                        var distance = DistanceSquared(cornersInRectangle[i], contourPoint);
-                        if (distance < distances[i])
-                        {
-                            adjustedCorners[i] = contourPoint;
-                            distances[i] = distance;
-                        }
-                    }
+                    displayImage.DrawPolyline(piece.Segments[i].Points, false, new Bgr(colors[i % colors.Length]));
                 }
 
-                var finalCorners = adjustedCorners.Where((c, i) => distances[i] < 10).ToArray();
-
-                if (finalCorners.Length > 4)
-                {
-                    var contourCentroid = CornerExtractor.GetCentroid(contour);
-
-                    var comb = CornerExtractor.GetCombinations(finalCorners, 4);
-                    
-                    var yo = comb.Select(c => Tuple.Create(c,
-                            DistanceSquared(contourCentroid,
-                                new Point((int)Math.Round(c.Sum(p => p.X) / 4m), (int)Math.Round(c.Sum(p => p.Y) / 4m)))))
-                        .ToArray();
-
-                    var minDistance = yo.Min(d => d.Item2);
-                    var chosenCorners = yo.First(d => d.Item2 == minDistance).Item1;
-                    finalCorners = chosenCorners;
-                }
-
-                CvInvoke.Polylines(displayImage, contour, true, new Bgr(Color.Red).MCvScalar, 1);
-
-                var pointsToShift = contourPoints.TakeWhile(p => !finalCorners.Contains(p)).Count() + 1;
-                var contourPointsShifted = contourPoints.Skip(pointsToShift)
-                    .Concat(contourPoints.Take(pointsToShift)).ToArray();
-
-                var segments = new List<ArraySegment<Point>>();
-                var start = 0;
-
-                for (var i = 0; i < contourPointsShifted.Length; i++)
-                {
-                    if (finalCorners.Contains(contourPointsShifted[i]))
-                    {
-                        segments.Add(new ArraySegment<Point>(contourPointsShifted, start, i - start));
-                        start = i + 1;
-                    }
-                }
-
-                allSegments.AddRange(segments.Where(s => s.Any()).Select(s => new Segment(s, contour.GetHashCode())));
-
-
-                for (var i = 0; i < segments.Count; i++)
-                {
-                    displayImage.DrawPolyline(segments[i].ToArray(), false, new Bgr(colors[i%colors.Length]));
-                }
-
-                foreach (var corner in finalCorners)
+                foreach (var corner in piece.Corners)
                 {
                     displayImage.Draw(new Rectangle(corner, new Size(3, 3)), new Bgr(Color.Red));
                 }
             }
 
             //imageBox1.Image = displayImage.Bitmap;
+
+            var allSegments = pieces.SelectMany(p => p.Segments).ToArray();
 
             var groups = allSegments.GroupBy(s => s.IsPointy).ToArray();
 
@@ -178,55 +160,18 @@ namespace PuzzleExtractor.Forms
                 var crossSize = 30;
 
                 var comp = _comparisons[i];
-                displayImage.Draw(new Cross2DF(comp.A.Centroid, crossSize, crossSize), new Bgr(colors[i]), 5);
-                displayImage.Draw(new Cross2DF(comp.B.Centroid, crossSize, crossSize), new Bgr(colors[i]), 5);
+                CvInvoke.PutText(displayImage, i.ToString(), comp.A.Centroid, FontFace.HersheySimplex, 1.0, new Bgr(colors[i]).MCvScalar, 2);
+                CvInvoke.PutText(displayImage, i.ToString(), comp.B.Centroid, FontFace.HersheySimplex, 1.0, new Bgr(colors[i]).MCvScalar, 2);
+                //displayImage.Draw(new Cross2DF(comp.A.Centroid, crossSize, crossSize), new Bgr(colors[i]), 5);
+                //displayImage.Draw(new Cross2DF(comp.B.Centroid, crossSize, crossSize), new Bgr(colors[i]), 5);
             }
 
             imageBox1.Image = displayImage.Bitmap;
         }
 
-        public List<Point[]> GetContours(Image<Gray, byte> contourImage)
-        {
-            var result = new List<Point[]>();
-
-            var vectorOfContours = new VectorOfVectorOfPoint();
-
-            CvInvoke.FindContours(contourImage, vectorOfContours, null, RetrType.List, ChainApproxMethod.ChainApproxSimple);
-
-            var contourAreas = Enumerable.Range(0, vectorOfContours.Size).Select(i => CvInvoke.ContourArea(vectorOfContours[i]))
-                .ToArray();
-
-            var filteredAreas = contourAreas.Where(a => a > 500).OrderBy(a => a).ToArray();
-            var median = filteredAreas.Skip(filteredAreas.Length / 2).FirstOrDefault();
-
-            const double deviation = 0.2;
-            var from = median * (1 - deviation);
-            var to = median * (1 + deviation);
-
-            for (var i = 0; i < vectorOfContours.Size; i++)
-            {
-                var area = contourAreas[i];
-                if (area < from || area > to) continue;
-
-                result.Add(vectorOfContours[i].ToArray());
-            }
-
-            return result;
-        }
-
         private void button1_Click(object sender, EventArgs e)
         {
-            imageBox1.Image.Save(Desktop("SavedFromForms.bmp"), ImageFormat.Bmp);
-        }
-
-        static int DistanceSquared(Point a, Point b)
-        {
-            return (a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y);
-        }
-
-        static string Desktop(string filename)
-        {
-            return Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "contours"), filename);
+            imageBox1.Image.Save(DataDir.Contours("SavedFromForms.bmp"), ImageFormat.Bmp);
         }
 
         private void button2_Click(object sender, EventArgs e)
