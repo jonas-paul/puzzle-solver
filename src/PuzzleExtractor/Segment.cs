@@ -8,9 +8,9 @@ namespace PuzzleExtractor
 {
     public class Segment
     {
-        public Segment(IEnumerable<Point> points, int contourHashCode)
+        public Segment(IEnumerable<Point> points, Piece piece)
         {
-            ContourHashCode = contourHashCode;
+            Piece = piece;
             Points = points.ToArray();
 
             Aligned = Align(Points);
@@ -19,7 +19,7 @@ namespace PuzzleExtractor
 
         public Point[] Points { get; }
 
-        public int ContourHashCode { get; }
+        public Piece Piece { get; }
 
         public bool IsPointy => Aligned.Sum(p => p.Y * Math.Abs(p.Y)) > 0;
 

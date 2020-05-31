@@ -3,22 +3,24 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 
-namespace PuzzleExtractor.Forms
+namespace PuzzleExtractor
 {
     public class Piece
     {
-        public Piece(Point[] contour, Point[] corners)
+        public Piece(Point[] contour, Point[] corners, Batch batch)
         {
             Contour = contour;
             Corners = corners;
+            Batch = batch;
             Segments = SplitToSegments(contour, corners);
         }
 
         public Point[] Contour { get; }
         public Point[] Corners { get; }
+        public Batch Batch { get; }
         public Segment[] Segments { get; set; }
 
-        public static Segment[] SplitToSegments(Point[] contour, Point[] corners)
+        public Segment[] SplitToSegments(Point[] contour, Point[] corners)
         {
             var contourPoints = contour.ToArray().Reverse().ToArray();
 
@@ -38,7 +40,7 @@ namespace PuzzleExtractor.Forms
                 }
             }
 
-            return segments.Where(s => s.Any()).Select(s => new Segment(s, contour.GetHashCode())).ToArray();
+            return segments.Where(s => s.Any()).Select(s => new Segment(s, this)).ToArray();
         }
     }
 }

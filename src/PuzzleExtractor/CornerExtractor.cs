@@ -6,6 +6,7 @@ using Emgu.CV;
 using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.Util;
+using Serilog;
 
 namespace PuzzleExtractor
 {
@@ -148,6 +149,12 @@ namespace PuzzleExtractor
             }
 
             var finalCorners = adjustedCorners.Where((c, i) => distances[i] < 10).ToArray();
+
+            if (finalCorners.Length > 10)
+            {
+                Log.Warning($"Too many corners: {finalCorners.Length}");
+                return null;
+            }
 
             if (finalCorners.Length > 4)
             {

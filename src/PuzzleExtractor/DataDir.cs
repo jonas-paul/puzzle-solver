@@ -8,5 +8,11 @@ namespace PuzzleExtractor
         {
             return Path.GetFullPath(Path.Combine("..\\..\\..\\..\\data\\contours", filename));
         }
+
+        public static string[] AllPiecesFiles()
+        {
+            var dir = Path.GetFullPath(Path.Combine("..\\..\\..\\..\\data\\allpieces"));
+            return Directory.GetFiles(dir);
+        }
     }
 }
